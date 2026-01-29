@@ -63,14 +63,33 @@ def get_custom_time_keyboard(current_time: int = 3600):
     hours = current_time // 3600
     remaining_seconds = current_time % 3600
     minutes = remaining_seconds // 60
+    seconds = remaining_seconds % 60
     
-    time_display = f"{hours}h {minutes}m" if minutes > 0 else f"{hours}h"
+    time_display = ""
+    if hours > 0:
+        time_display += f"{hours}h "
+    if minutes > 0:
+        time_display += f"{minutes}m "
+    if seconds > 0 or (hours == 0 and minutes == 0):
+        time_display += f"{seconds}s"
+    
+    time_display = time_display.strip()
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="- Hour", callback_data="decrease_hour"),
             InlineKeyboardButton(text=time_display, callback_data="show_time"),
             InlineKeyboardButton(text="+ Hour", callback_data="increase_hour")
+        ],
+        [
+            InlineKeyboardButton(text="- Min", callback_data="decrease_minute"),
+            InlineKeyboardButton(text=" ", callback_data="space_min_custom"),
+            InlineKeyboardButton(text="+ Min", callback_data="increase_minute")
+        ],
+        [
+            InlineKeyboardButton(text="- Sec", callback_data="decrease_second"),
+            InlineKeyboardButton(text=" ", callback_data="space_sec_custom"),
+            InlineKeyboardButton(text="+ Sec", callback_data="increase_second")
         ],
         [
             InlineKeyboardButton(text="Set Time", callback_data=f"set_custom_{current_time}"),
@@ -136,9 +155,19 @@ def get_group_settings_keyboard(chat_id: int, is_enabled: bool = None):
             InlineKeyboardButton(text="24 hour", callback_data="time_86400")
         ],
         [
-            InlineKeyboardButton(text="- Hour", callback_data="decrease_default_time"),
+            InlineKeyboardButton(text="- Hour", callback_data="decrease_hour_default"),
             InlineKeyboardButton(text=time_display, callback_data="show_default_time"),
-            InlineKeyboardButton(text="+ Hour", callback_data="increase_default_time")
+            InlineKeyboardButton(text="+ Hour", callback_data="increase_hour_default")
+        ],
+        [
+            InlineKeyboardButton(text="- Min", callback_data="decrease_minute_default"),
+            InlineKeyboardButton(text=" ", callback_data="space_min"),
+            InlineKeyboardButton(text="+ Min", callback_data="increase_minute_default")
+        ],
+        [
+            InlineKeyboardButton(text="- Sec", callback_data="decrease_second_default"),
+            InlineKeyboardButton(text=" ", callback_data="space_sec"),
+            InlineKeyboardButton(text="+ Sec", callback_data="increase_second_default")
         ],
         [
             InlineKeyboardButton(text="Save Changes", callback_data="save_changes")
@@ -308,8 +337,9 @@ async def handle_callback(callback_query: types.CallbackQuery):
         # Check if user has permission for settings-related callbacks
         if callback_query.data in [
             "enable_delete", "disable_delete", "time_60", "time_300", "time_600",
-            "time_21600", "time_43200", "time_86400", "increase_default_time",
-            "decrease_default_time", "save_changes"
+            "time_21600", "time_43200", "time_86400", "increase_hour_default",
+            "decrease_hour_default", "increase_minute_default", "decrease_minute_default",
+            "increase_second_default", "decrease_second_default", "save_changes"
         ]:
             if not await check_permission(chat_id, user_id):
                 await bot.answer_callback_query(
@@ -408,6 +438,108 @@ async def handle_callback(callback_query: types.CallbackQuery):
         )
         
         await callback_query.answer(f"Time decreased to {format_time(custom_timers[key])}")
+    
+    elif callback_query.data == "increase_minute":
+        user_id = callback_query.from_user.id
+        chat_id = callback_query.message.chat.id
+        key = f"{user_id}:{chat_id}"
+        
+        # Increase time by 1 minute (60 seconds)
+        if key not in custom_timers:
+            custom_timers[key] = 3600
+        custom_timers[key] += 60
+        
+        # Cap at 24 hours (86400 seconds)
+        if custom_timers[key] > 86400:
+            custom_timers[key] = 86400
+        
+        await callback_query.message.edit_text(
+            f"⏱️ <b>Custom Timer Settings</b> ⏱️\n\n"
+            f"Current time: <b>{format_time(custom_timers[key])}</b>\n\n"
+            f"Use the buttons below to adjust the time:",
+            parse_mode="HTML",
+            reply_markup=get_custom_time_keyboard(custom_timers[key])
+        )
+        
+        await callback_query.answer(f"Time increased to {format_time(custom_timers[key])}")
+    
+    elif callback_query.data == "decrease_minute":
+        user_id = callback_query.from_user.id
+        chat_id = callback_query.message.chat.id
+        key = f"{user_id}:{chat_id}"
+        
+        # Decrease time by 1 minute (60 seconds), minimum 60 seconds
+        if key not in custom_timers:
+            custom_timers[key] = 3600
+        custom_timers[key] -= 60
+        
+        if custom_timers[key] < 60:
+            custom_timers[key] = 60
+        
+        await callback_query.message.edit_text(
+            f"⏱️ <b>Custom Timer Settings</b> ⏱️\n\n"
+            f"Current time: <b>{format_time(custom_timers[key])}</b>\n\n"
+            f"Use the buttons below to adjust the time:",
+            parse_mode="HTML",
+            reply_markup=get_custom_time_keyboard(custom_timers[key])
+        )
+        
+        await callback_query.answer(f"Time decreased to {format_time(custom_timers[key])}")
+    
+    elif callback_query.data == "increase_second":
+        user_id = callback_query.from_user.id
+        chat_id = callback_query.message.chat.id
+        key = f"{user_id}:{chat_id}"
+        
+        # Increase time by 1 second
+        if key not in custom_timers:
+            custom_timers[key] = 3600
+        custom_timers[key] += 1
+        
+        # Cap at 24 hours (86400 seconds)
+        if custom_timers[key] > 86400:
+            custom_timers[key] = 86400
+        
+        await callback_query.message.edit_text(
+            f"⏱️ <b>Custom Timer Settings</b> ⏱️\n\n"
+            f"Current time: <b>{format_time(custom_timers[key])}</b>\n\n"
+            f"Use the buttons below to adjust the time:",
+            parse_mode="HTML",
+            reply_markup=get_custom_time_keyboard(custom_timers[key])
+        )
+        
+        await callback_query.answer(f"Time increased to {format_time(custom_timers[key])}")
+    
+    elif callback_query.data == "decrease_second":
+        user_id = callback_query.from_user.id
+        chat_id = callback_query.message.chat.id
+        key = f"{user_id}:{chat_id}"
+        
+        # Decrease time by 1 second, minimum 1 second
+        if key not in custom_timers:
+            custom_timers[key] = 3600
+        custom_timers[key] -= 1
+        
+        if custom_timers[key] < 1:
+            custom_timers[key] = 1
+        
+        await callback_query.message.edit_text(
+            f"⏱️ <b>Custom Timer Settings</b> ⏱️\n\n"
+            f"Current time: <b>{format_time(custom_timers[key])}</b>\n\n"
+            f"Use the buttons below to adjust the time:",
+            parse_mode="HTML",
+            reply_markup=get_custom_time_keyboard(custom_timers[key])
+        )
+        
+        await callback_query.answer(f"Time decreased to {format_time(custom_timers[key])}")
+    
+    elif callback_query.data == "space_min_custom":
+        # This is just a placeholder button with no action
+        await callback_query.answer()
+    
+    elif callback_query.data == "space_sec_custom":
+        # This is just a placeholder button with no action
+        await callback_query.answer()
     
     elif callback_query.data.startswith("set_custom_"):
         # Extract custom time from callback data
@@ -539,7 +671,7 @@ async def handle_callback(callback_query: types.CallbackQuery):
         )
         await bot.answer_callback_query(callback_query.id, f"Default time set to {format_time(time_seconds)}")
     
-    elif callback_query.data == "increase_default_time":
+    elif callback_query.data == "increase_hour_default":
         chat_id = callback_query.message.chat.id
         
         # Get current default time and increase by 1 hour (3600 seconds)
@@ -566,7 +698,7 @@ async def handle_callback(callback_query: types.CallbackQuery):
         )
         await callback_query.answer(f"Default time increased to {format_time(new_time)}")
     
-    elif callback_query.data == "decrease_default_time":
+    elif callback_query.data == "decrease_hour_default":
         chat_id = callback_query.message.chat.id
         
         # Get current default time and decrease by 1 hour (3600 seconds), minimum 0 seconds
@@ -591,6 +723,181 @@ async def handle_callback(callback_query: types.CallbackQuery):
             reply_markup=get_group_settings_keyboard(chat_id, is_enabled)
         )
         await callback_query.answer(f"Default time decreased to {format_time(new_time)}")
+    
+    elif callback_query.data == "increase_minute_default":
+        chat_id = callback_query.message.chat.id
+        
+        # Get current default time and increase by 1 minute (60 seconds)
+        current_time = default_deletion_times.get(chat_id, 60)
+        
+        # Convert to hours, minutes, seconds
+        hours = current_time // 3600
+        remaining_seconds = current_time % 3600
+        minutes = remaining_seconds // 60
+        seconds = remaining_seconds % 60
+        
+        # Increase minutes by 1
+        minutes += 1
+        if minutes >= 60:
+            minutes = 0
+            hours += 1
+            if hours > 24:
+                hours = 24
+        
+        # Calculate new total seconds
+        new_time = hours * 3600 + minutes * 60 + seconds
+        default_deletion_times[chat_id] = new_time
+        is_enabled = group_settings.get(chat_id, True)
+        
+        settings_text = f"🔧 <b>Group Settings</b> 🔧\n\n"
+        status = "Enabled" if is_enabled else "Disabled"
+        settings_text += f"Message deletion: <b>{status}</b>\n\n"
+        settings_text += f"Default deletion time: <b>{format_time(new_time)}</b>\n\n"
+        settings_text += "Adjust settings below:"
+        
+        await safe_edit_message(
+            callback_query.message,
+            settings_text,
+            reply_markup=get_group_settings_keyboard(chat_id, is_enabled)
+        )
+        await callback_query.answer(f"Default time increased to {format_time(new_time)}")
+    
+    elif callback_query.data == "decrease_minute_default":
+        chat_id = callback_query.message.chat.id
+        
+        # Get current default time and decrease by 1 minute (60 seconds), minimum 0 seconds
+        current_time = default_deletion_times.get(chat_id, 60)
+        
+        # Convert to hours, minutes, seconds
+        hours = current_time // 3600
+        remaining_seconds = current_time % 3600
+        minutes = remaining_seconds // 60
+        seconds = remaining_seconds % 60
+        
+        # Decrease minutes by 1
+        minutes -= 1
+        if minutes < 0:
+            minutes = 59
+            hours -= 1
+            if hours < 0:
+                hours = 0
+                minutes = 0
+        
+        # Calculate new total seconds
+        new_time = hours * 3600 + minutes * 60 + seconds
+        if new_time <= 0:
+            new_time = 60  # Minimum time of 1 minute
+            
+        default_deletion_times[chat_id] = new_time
+        is_enabled = group_settings.get(chat_id, True)
+        
+        settings_text = f"🔧 <b>Group Settings</b> 🔧\n\n"
+        status = "Enabled" if is_enabled else "Disabled"
+        settings_text += f"Message deletion: <b>{status}</b>\n\n"
+        settings_text += f"Default deletion time: <b>{format_time(new_time)}</b>\n\n"
+        settings_text += "Adjust settings below:"
+        
+        await safe_edit_message(
+            callback_query.message,
+            settings_text,
+            reply_markup=get_group_settings_keyboard(chat_id, is_enabled)
+        )
+        await callback_query.answer(f"Default time decreased to {format_time(new_time)}")
+    
+    elif callback_query.data == "increase_second_default":
+        chat_id = callback_query.message.chat.id
+        
+        # Get current default time and increase by 1 second
+        current_time = default_deletion_times.get(chat_id, 60)
+        
+        # Convert to hours, minutes, seconds
+        hours = current_time // 3600
+        remaining_seconds = current_time % 3600
+        minutes = remaining_seconds // 60
+        seconds = remaining_seconds % 60
+        
+        # Increase seconds by 1
+        seconds += 1
+        if seconds >= 60:
+            seconds = 0
+            minutes += 1
+            if minutes >= 60:
+                minutes = 0
+                hours += 1
+                if hours > 24:
+                    hours = 24
+        
+        # Calculate new total seconds
+        new_time = hours * 3600 + minutes * 60 + seconds
+        default_deletion_times[chat_id] = new_time
+        is_enabled = group_settings.get(chat_id, True)
+        
+        settings_text = f"🔧 <b>Group Settings</b> 🔧\n\n"
+        status = "Enabled" if is_enabled else "Disabled"
+        settings_text += f"Message deletion: <b>{status}</b>\n\n"
+        settings_text += f"Default deletion time: <b>{format_time(new_time)}</b>\n\n"
+        settings_text += "Adjust settings below:"
+        
+        await safe_edit_message(
+            callback_query.message,
+            settings_text,
+            reply_markup=get_group_settings_keyboard(chat_id, is_enabled)
+        )
+        await callback_query.answer(f"Default time increased to {format_time(new_time)}")
+    
+    elif callback_query.data == "decrease_second_default":
+        chat_id = callback_query.message.chat.id
+        
+        # Get current default time and decrease by 1 second, minimum 0 seconds
+        current_time = default_deletion_times.get(chat_id, 60)
+        
+        # Convert to hours, minutes, seconds
+        hours = current_time // 3600
+        remaining_seconds = current_time % 3600
+        minutes = remaining_seconds // 60
+        seconds = remaining_seconds % 60
+        
+        # Decrease seconds by 1
+        seconds -= 1
+        if seconds < 0:
+            seconds = 59
+            minutes -= 1
+            if minutes < 0:
+                minutes = 59
+                hours -= 1
+                if hours < 0:
+                    hours = 0
+                    minutes = 0
+                    seconds = 0
+        
+        # Calculate new total seconds
+        new_time = hours * 3600 + minutes * 60 + seconds
+        if new_time <= 0:
+            new_time = 60  # Minimum time of 1 minute
+            
+        default_deletion_times[chat_id] = new_time
+        is_enabled = group_settings.get(chat_id, True)
+        
+        settings_text = f"🔧 <b>Group Settings</b> 🔧\n\n"
+        status = "Enabled" if is_enabled else "Disabled"
+        settings_text += f"Message deletion: <b>{status}</b>\n\n"
+        settings_text += f"Default deletion time: <b>{format_time(new_time)}</b>\n\n"
+        settings_text += "Adjust settings below:"
+        
+        await safe_edit_message(
+            callback_query.message,
+            settings_text,
+            reply_markup=get_group_settings_keyboard(chat_id, is_enabled)
+        )
+        await callback_query.answer(f"Default time decreased to {format_time(new_time)}")
+    
+    elif callback_query.data == "space_min":
+        # This is just a placeholder button with no action
+        await callback_query.answer()
+    
+    elif callback_query.data == "space_sec":
+        # This is just a placeholder button with no action
+        await callback_query.answer()
     
     elif callback_query.data == "show_default_time":
         chat_id = callback_query.message.chat.id
