@@ -33,6 +33,8 @@ group_settings: Dict[int, bool] = {}
 default_deletion_times: Dict[int, int] = {}  # Default is 60 seconds
 # Dictionary to store custom timer values for each user/chat
 custom_timers: Dict[str, int] = {}  # Key: f"{user_id}:{chat_id}", Value: seconds
+# Dictionary to track pinned messages to avoid deletion (key: chat_id:message_id)
+pinned_messages: set = set()
 
 # Create inline keyboard with timer options
 def get_timer_keyboard():
@@ -195,6 +197,12 @@ async def schedule_message_deletion(chat_id: int, message_id: int, delay_seconds
     async def delete_message():
         await asyncio.sleep(delay_seconds)
         try:
+            # Check if the message is in the pinned messages set before attempting deletion
+            message_key = f"{chat_id}:{message_id}"
+            if message_key in pinned_messages:
+                print(f"Skipping deletion of pinned message {message_id}")
+                return
+            
             await bot.delete_message(chat_id=chat_id, message_id=message_id)
             print(f"Message {message_id} in chat {chat_id} deleted after {delay_seconds}s")
         except Exception as e:
@@ -245,7 +253,7 @@ async def send_welcome(message: Message):
         "<b>How to use:</b>\n"
         "• Send any message and I'll offer to make it self-destruct\n"
         "• Use /help for more commands\n\n"
-        "<i>𝔱𝔥𝔦𝔰 𝔟𝔬𝔱 𝔦𝔰 𝔠𝔯𝔢𝔞𝔱𝔢𝔡 𝔟𝔶 @Titanic_bots 𝔞𝔫𝔡 𝔬𝔴𝔫𝔢𝔯 :- @hacker_unity_212</i>\n\n"
+        "𝔱𝔥𝔦𝔰 𝔟𝔬𝔱 𝔦𝔰 𝔠𝔯𝔢𝔞𝔱𝔢𝔡 𝔟𝔶 @Titanic_bots 𝔞𝔫𝔡 𝔬𝔴𝔫𝔢𝔯 :- @hacker_unity_212</i>\n\n"
         "Look for my profile picture above! 🤖" 
     )
     
@@ -299,6 +307,29 @@ async def send_settings(message: Message):
     else:
         await message.answer("⚙️ Settings are only available in groups.")
 
+# Handler for pinned message events
+@dp.message()
+async def handle_pinned_message_event(message: Message):
+    # When a message gets pinned, Telegram sends a service message with the pinned_message attribute
+    if message.pinned_message is not None:
+        # When a message gets pinned, add it to our tracking set
+        pinned_msg = message.pinned_message
+        if pinned_msg:
+            message_key = f"{message.chat.id}:{pinned_msg.message_id}"
+            pinned_messages.add(message_key)
+            print(f"Added pinned message to tracking: {message_key}")
+            
+            # Also cancel any scheduled deletion for this message if it exists
+            if pinned_msg.message_id in scheduled_messages:
+                scheduled_messages[pinned_msg.message_id].cancel()
+                del scheduled_messages[pinned_msg.message_id]
+                print(f"Cancelled scheduled deletion for pinned message {pinned_msg.message_id}")
+
+# Note: Unfortunately, Telegram doesn't provide a reliable way to detect when a message is unpinned
+# and remove it from our tracking set. The service message sent when unpinning doesn't include
+# the original message ID. As a result, pinned messages will remain in our tracking set 
+# until the bot is restarted. This is a known limitation of this implementation.
+
 # Handler for regular messages
 @dp.message()
 async def handle_message(message: Message):
@@ -312,8 +343,22 @@ async def handle_message(message: Message):
             await message.answer("⚠️ Message deletion is currently disabled in this group.")
             return
         else:
+            # Check if this message is a service message (like pin notification)
+            # Skip scheduling if it's a service message like pin notification
+            if message.pinned_message or (hasattr(message, 'text') and message.text and 
+               ('pinned' in message.text.lower() or 'pinned message' in message.text.lower())):
+                # This is a pin notification, not the actual message to delete
+                return
+            
             # If deletion is enabled, use the default time for automatic deletion
             default_time = default_deletion_times.get(chat_id, 60)  # Default to 60 seconds
+            
+            # Check if this message has already been pinned before scheduling deletion
+            message_key = f"{chat_id}:{message.message_id}"
+            if message_key in pinned_messages:
+                print(f"Skipping scheduling for pinned message {message.message_id}")
+                return
+                
             await schedule_message_deletion(
                 chat_id=message.chat.id,
                 message_id=message.message_id,
