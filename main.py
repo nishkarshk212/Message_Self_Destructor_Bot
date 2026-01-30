@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 import os
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 # Enable logging
 logging.basicConfig(level=logging.INFO)
@@ -253,7 +253,7 @@ async def send_welcome(message: Message):
         "<b>How to use:</b>\n"
         "• Send any message and I'll offer to make it self-destruct\n"
         "• Use /help for more commands\n\n"
-        "𝔱𝔥𝔦𝔰 𝔟𝔬𝔱 𝔦𝔰 𝔠𝔯𝔢𝔞𝔱𝔢𝔡 𝔟𝔶 @Titanic_bots 𝔞𝔫𝔡 𝔬𝔴𝔫𝔢𝔯 :- @hacker_unity_212</i>\n\n"
+        "<i>this bot is created by @Titanic_bots and owner :- @hacker_unity_212</i>\n\n"
         "Look for my profile picture above! 🤖" 
     )
     
@@ -274,7 +274,6 @@ async def send_help(message: Message):
         "• Choose from various timer options\n"
         "• Use custom time with + and - buttons\n"
         "• Enable/disable message deletion in groups\n\n"
-        "I'm a girl bot 🌸"
     )
     
     await message.answer(help_text, parse_mode="HTML")
@@ -979,6 +978,8 @@ async def handle_callback(callback_query: types.CallbackQuery):
     # Acknowledge the callback
     await callback_query.answer()
 
+import traceback
+
 # Run scheduler
 async def run_scheduler():
     while True:
@@ -991,8 +992,12 @@ if __name__ == "__main__":
     
     # Run the bot
     try:
+        # Attempt to run polling with better error handling
         dp.run_polling(bot, skip_updates=True)
     except KeyboardInterrupt:
         print("Bot stopped by user")
     except Exception as e:
         print(f"An error occurred: {e}")
+        print("This error may occur if another instance of the bot is running elsewhere.")
+        print("Make sure only one instance of this bot is active at any time.")
+        traceback.print_exc()
